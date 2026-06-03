@@ -12,6 +12,7 @@ import {
 import { AREA_PRESETS, PROPERTIES_PER_PAGE } from "@/features/properties/data/filter-options";
 import { getPublicSettings } from "@/features/content/queries/public";
 import { CACHE_TAGS } from "@/lib/cache/tags";
+import { withDbFallback } from "@/lib/db/safe-query";
 import { prisma } from "@/lib/prisma";
 import type {
   Property,
@@ -191,15 +192,21 @@ export const getPublishedPropertyBySlug = reactCache(async (slug: string) => {
 export async function getFeaturedPublishedProperties(limit = 6) {
   return unstable_cache(
     async () => {
-      const settings = await getPublicSettings();
-      const rows = await prisma.property.findMany({
-        where: publishedWhere,
-        include: propertyInclude,
-        orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
-        take: limit,
-      });
+      return withDbFallback(
+        async () => {
+          const settings = await getPublicSettings();
+          const rows = await prisma.property.findMany({
+            where: publishedWhere,
+            include: propertyInclude,
+            orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+            take: limit,
+          });
 
-      return rows.map((row) => mapPrismaPropertyToFrontend(row, settings));
+          return rows.map((row) => mapPrismaPropertyToFrontend(row, settings));
+        },
+        [],
+        "featured properties"
+      );
     },
     ["featured-properties", String(limit)],
     { revalidate: 60, tags: [CACHE_TAGS.properties] }

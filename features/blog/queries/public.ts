@@ -2,18 +2,24 @@ import { unstable_cache } from "next/cache";
 import { cache as reactCache } from "react";
 
 import { CACHE_TAGS } from "@/lib/cache/tags";
+import { withDbFallback } from "@/lib/db/safe-query";
 import { prisma } from "@/lib/prisma";
 
 export const getPublishedBlogPosts = unstable_cache(
   async () => {
-    return prisma.blogPost.findMany({
-      where: { published: true },
-      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-      include: {
-        category: { select: { name: true, slug: true } },
-        author: { select: { name: true } },
-      },
-    });
+    return withDbFallback(
+      () =>
+        prisma.blogPost.findMany({
+          where: { published: true },
+          orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+          include: {
+            category: { select: { name: true, slug: true } },
+            author: { select: { name: true } },
+          },
+        }),
+      [],
+      "published blog posts"
+    );
   },
   ["published-blog-posts"],
   { revalidate: 120, tags: [CACHE_TAGS.blog] }

@@ -6,7 +6,6 @@ import { PropertyJsonLd } from "@/features/properties/components/detail/property
 import { buildPropertyMetadata } from "@/features/properties/lib/property-seo";
 import {
   getPublishedPropertyBySlug,
-  getPublishedPropertySlugs,
   getSimilarPublishedProperties,
 } from "@/features/properties/queries/public";
 
@@ -14,11 +13,7 @@ type PropertyDetailPageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export async function generateStaticParams() {
-  const slugs = await getPublishedPropertySlugs();
-  return slugs.map((slug: string) => ({ slug }));
-}
-
+export const revalidate = 60;
 export const dynamicParams = true;
 
 export async function generateMetadata({

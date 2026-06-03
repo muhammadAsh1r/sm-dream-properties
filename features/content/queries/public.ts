@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { cache as reactCache } from "react";
 
 import { CACHE_TAGS } from "@/lib/cache/tags";
+import { withDbFallback } from "@/lib/db/safe-query";
 import { prisma } from "@/lib/prisma";
 import { siteConfig } from "@/lib/constants";
 import type { Testimonial as FrontendTestimonial } from "@/types/service";
@@ -77,7 +78,11 @@ function parseSocial(settings: Settings | null) {
 }
 
 async function fetchPublicSettings(): Promise<Settings | null> {
-  return prisma.settings.findUnique({ where: { id: "global" } });
+  return withDbFallback(
+    () => prisma.settings.findUnique({ where: { id: "global" } }),
+    null,
+    "public settings"
+  );
 }
 
 const getSettingsFromCache = unstable_cache(
@@ -112,11 +117,17 @@ export const getPublicSiteConfig = reactCache(async (): Promise<PublicSiteConfig
 
 export const getPublicTestimonials = unstable_cache(
   async (): Promise<FrontendTestimonial[]> => {
-    const rows = await prisma.testimonial.findMany({
-      where: { approved: true },
-      orderBy: [{ order: "asc" }, { createdAt: "desc" }],
-    });
-    return rows.map(mapTestimonial);
+    return withDbFallback(
+      async () => {
+        const rows = await prisma.testimonial.findMany({
+          where: { approved: true },
+          orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+        });
+        return rows.map(mapTestimonial);
+      },
+      [],
+      "public testimonials"
+    );
   },
   ["public-testimonials"],
   { revalidate: 120, tags: [CACHE_TAGS.testimonials] }
@@ -143,21 +154,26 @@ export type PublicTeamMember = {
 
 export const getPublicTeamMembers = unstable_cache(
   async (): Promise<PublicTeamMember[]> => {
-    return prisma.user.findMany({
-      where: {
-        active: true,
-        role: { in: ["AGENT", "ADMIN", "SUPER_ADMIN"] },
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        avatarUrl: true,
-        role: true,
-      },
-      orderBy: [{ role: "asc" }, { name: "asc" }],
-      take: 12,
-    });
+    return withDbFallback(
+      () =>
+        prisma.user.findMany({
+          where: {
+            active: true,
+            role: { in: ["AGENT", "ADMIN", "SUPER_ADMIN"] },
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true,
+            role: true,
+          },
+          orderBy: [{ role: "asc" }, { name: "asc" }],
+          take: 12,
+        }),
+      [],
+      "public team"
+    );
   },
   ["public-team"],
   { revalidate: 300, tags: [CACHE_TAGS.team] }
@@ -165,22 +181,33 @@ export const getPublicTeamMembers = unstable_cache(
 
 export const getPublicSiteStats = unstable_cache(
   async (): Promise<PublicSiteStats> => {
-    const [propertiesListed, featuredProperties, happyClients, testimonials] =
-      await Promise.all([
-        prisma.property.count({ where: { published: true, archived: false } }),
-        prisma.property.count({
-          where: { published: true, archived: false, featured: true },
-        }),
-        prisma.lead.count({ where: { status: "CLOSED" } }),
-        prisma.testimonial.count({ where: { approved: true } }),
-      ]);
+    return withDbFallback(
+      async () => {
+        const [propertiesListed, featuredProperties, happyClients, testimonials] =
+          await Promise.all([
+            prisma.property.count({ where: { published: true, archived: false } }),
+            prisma.property.count({
+              where: { published: true, archived: false, featured: true },
+            }),
+            prisma.lead.count({ where: { status: "CLOSED" } }),
+            prisma.testimonial.count({ where: { approved: true } }),
+          ]);
 
-    return {
-      propertiesListed,
-      featuredProperties,
-      happyClients,
-      testimonials,
-    };
+        return {
+          propertiesListed,
+          featuredProperties,
+          happyClients,
+          testimonials,
+        };
+      },
+      {
+        propertiesListed: 0,
+        featuredProperties: 0,
+        happyClients: 0,
+        testimonials: 0,
+      },
+      "public site stats"
+    );
   },
   ["public-site-stats"],
   { revalidate: 120, tags: [CACHE_TAGS.stats] }
