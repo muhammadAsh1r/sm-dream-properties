@@ -24,8 +24,10 @@ import {
 } from "@/features/admin/components/properties/property-image-uploader";
 import { propertyFormSchema, type PropertyFormValues } from "@/features/admin/schemas";
 
+type AdminProperty = Omit<Property, "price"> & { price: number };
+
 type PropertyFormProps = {
-  property?: Property & { images: PropertyImage[] };
+  property?: AdminProperty & { images: PropertyImage[] };
   agents?: { id: string; name: string | null; email: string }[];
 };
 

@@ -40,7 +40,8 @@ import {
   togglePropertyFeatured,
 } from "@/features/admin/actions/properties";
 
-type PropertyRow = Property & {
+type PropertyRow = Omit<Property, "price"> & {
+  price: number;
   images: PropertyImage[];
   assignedAgent: { name: string | null } | null;
 };

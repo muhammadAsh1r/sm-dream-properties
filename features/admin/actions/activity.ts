@@ -37,7 +37,7 @@ export async function getActivityLogs(
   return { logs, total, pageSize: PAGE_SIZE, page };
 }
 
-export async function getActivityEntityTypes() {
+export async function getActivityEntityTypes(): Promise<string[]> {
   await requirePermission("activity:view");
   const rows = await prisma.activityLog.findMany({
     distinct: ["entityType"],

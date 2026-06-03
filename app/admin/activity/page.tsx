@@ -37,7 +37,7 @@ export default async function AdminActivityPage({ searchParams }: PageProps) {
               {
                 key: "entityType",
                 label: "All Entities",
-                options: entityTypes.map((t) => ({ label: t, value: t })),
+                options: entityTypes.map((t: string) => ({ label: t, value: t })),
               },
             ]}
           />
