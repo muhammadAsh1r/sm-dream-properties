@@ -1,26 +1,192 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* Brand palette */
+  --color-brand-primary: #00c8ff;
+  --color-brand-secondary: #0a0a0a;
+  --color-brand-accent: #d4af37;
+  --color-brand-muted: #f8f9fa;
+  --color-brand-border: #e5e7eb;
+  --color-brand-text: #111827;
+
+  /* Semantic tokens mapped to shadcn */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-destructive: var(--destructive);
+
+  /* Typography */
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-montserrat);
+
+  --text-hero: clamp(2.75rem, 5vw + 1rem, 4.5rem);
+  --text-display: clamp(2.25rem, 3.5vw + 1rem, 3.5rem);
+  --text-h1: clamp(2rem, 2.5vw + 1rem, 3rem);
+  --text-h2: clamp(1.75rem, 2vw + 0.75rem, 2.25rem);
+  --text-h3: clamp(1.375rem, 1.5vw + 0.5rem, 1.75rem);
+  --text-h4: clamp(1.125rem, 1vw + 0.5rem, 1.375rem);
+  --text-body-lg: 1.125rem;
+  --text-body: 1rem;
+  --text-body-sm: 0.875rem;
+
+  /* Shadows */
+  --shadow-card: 0 2px 16px -4px rgb(0 0 0 / 0.06);
+  --shadow-card-hover: 0 16px 40px -12px rgb(0 0 0 / 0.12);
+
+  /* Radius */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #00c8ff;
+  --primary-foreground: #0a0a0a;
+  --secondary: #0a0a0a;
+  --secondary-foreground: #ffffff;
+  --muted: #f8f9fa;
+  --muted-foreground: #6b7280;
+  --accent: #d4af37;
+  --accent-foreground: #0a0a0a;
+  --destructive: #dc2626;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #00c8ff;
+  --radius: 0.625rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  html {
+    @apply scroll-smooth font-sans antialiased;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+  }
+
+  ::selection {
+    background-color: rgb(0 200 255 / 0.2);
+    color: #0a0a0a;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .text-hero {
+    font-size: var(--text-hero);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+  }
+
+  .text-display {
+    font-size: var(--text-display);
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+  }
+
+  .text-h1 {
+    font-size: var(--text-h1);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+
+  .text-h2 {
+    font-size: var(--text-h2);
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+  }
+
+  .text-h3 {
+    font-size: var(--text-h3);
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+
+  .text-h4 {
+    font-size: var(--text-h4);
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+  }
+
+  .text-body-lg {
+    font-size: var(--text-body-lg);
+    line-height: 1.7;
+  }
+
+  .text-body {
+    font-size: var(--text-body);
+    line-height: 1.65;
+  }
+
+  .text-body-sm {
+    font-size: var(--text-body-sm);
+    line-height: 1.5;
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-card-hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  .glass {
+    background: rgb(255 255 255 / 0.72);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgb(255 255 255 / 0.55);
+  }
+
+  .glass-dark {
+    background: rgb(10 10 10 / 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgb(255 255 255 / 0.08);
+  }
+
+  .hero-gradient {
+    background:
+      radial-gradient(ellipse 80% 60% at 70% 20%, rgb(0 200 255 / 0.08), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 10% 80%, rgb(212 175 55 / 0.06), transparent 50%),
+      linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
+  }
 }

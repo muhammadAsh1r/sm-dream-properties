@@ -1,0 +1,289 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Users & Auth ───────────────────────────────────────────────────────────
+
+model User {
+  id         String    @id @default(cuid())
+  clerkId    String    @unique
+  email      String    @unique
+  name       String?
+  phone      String?
+  avatarUrl  String?
+  role       UserRole  @default(CLIENT)
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  assignedProperties Property[]  @relation("AssignedAgent")
+  inquiries          Inquiry[]
+  leads              Lead[]        @relation("AssignedLeads")
+  blogPosts          BlogPost[]
+  activityLogs       ActivityLog[]
+
+  @@index([role])
+  @@index([email])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  AGENT
+  CLIENT
+}
+
+// ─── Properties ─────────────────────────────────────────────────────────────
+
+model Property {
+  id                 String            @id @default(cuid())
+  propertyId         String            @unique
+  title              String
+  slug               String            @unique
+  shortDescription   String            @default("")
+  description        String            @default("")
+  descriptionSections Json?
+  price              Decimal           @db.Decimal(14, 2)
+  currency           String            @default("PKR")
+  type               PropertyType
+  kind               PropertyKind
+  category           PropertyCategory
+  location           String
+  locationArea       LocationArea
+  area               Float
+  areaUnit           AreaUnit          @default(SQFT)
+  bedrooms           Int?
+  bathrooms          Int?
+  garage             Int?
+  purpose            String            @default("Residential")
+  possessionStatus   PossessionStatus  @default(READY)
+  amenities          String[]          @default([])
+  nearbyLandmarks    String[]          @default([])
+  coordinates        Json?
+  featured           Boolean           @default(false)
+  isNew              Boolean           @default(true)
+  published          Boolean           @default(false)
+  archived           Boolean           @default(false)
+  seoTitle           String?
+  seoDescription     String?
+  ogImage            String?
+  canonicalUrl       String?
+  schemaData         Json?
+  assignedAgentId    String?
+  assignedAgent      User?             @relation("AssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  images    PropertyImage[]
+  inquiries Inquiry[]
+  leads     Lead[]
+
+  @@index([slug])
+  @@index([published, archived])
+  @@index([featured])
+  @@index([locationArea])
+  @@index([assignedAgentId])
+}
+
+model PropertyImage {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  url        String
+  alt        String?
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([propertyId, order])
+}
+
+enum PropertyType {
+  SALE
+  RENT
+}
+
+enum PropertyKind {
+  RESIDENTIAL_PLOT
+  COMMERCIAL_PLOT
+  HOUSE
+  APARTMENT
+  FARMHOUSE
+}
+
+enum PropertyCategory {
+  RESIDENTIAL
+  COMMERCIAL
+  PLOT
+  INDUSTRIAL
+}
+
+enum LocationArea {
+  FAISAL_TOWN
+  FAISAL_HILLS
+  B17
+  ISLAMABAD
+}
+
+enum AreaUnit {
+  SQFT
+  MARLA
+  KANAL
+}
+
+enum PossessionStatus {
+  READY
+  UNDER_CONSTRUCTION
+  BOOKING
+}
+
+// ─── Leads & Inquiries ──────────────────────────────────────────────────────
+
+model Lead {
+  id              String     @id @default(cuid())
+  name            String
+  phone           String
+  email           String?
+  source          String     @default("website")
+  status          LeadStatus @default(NEW)
+  notes           String?
+  propertyId      String?
+  property        Property?  @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  assignedAgentId String?
+  assignedAgent   User?      @relation("AssignedLeads", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([status])
+  @@index([assignedAgentId])
+  @@index([createdAt])
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  NEGOTIATING
+  CLOSED
+  LOST
+}
+
+model Inquiry {
+  id          String        @id @default(cuid())
+  name        String
+  email       String
+  phone       String
+  message     String
+  inquiryType InquiryType   @default(GENERAL)
+  status      InquiryStatus @default(NEW)
+  propertyId  String?
+  property    Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  userId      String?
+  user        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum InquiryType {
+  BUY
+  RENT
+  SELL
+  GENERAL
+}
+
+enum InquiryStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+// ─── Blog ─────────────────────────────────────────────────────────────────────
+
+model BlogPost {
+  id              String    @id @default(cuid())
+  title           String
+  slug            String    @unique
+  excerpt         String    @default("")
+  content         Json
+  featuredImage   String?
+  published       Boolean   @default(false)
+  publishedAt     DateTime?
+  seoTitle        String?
+  seoDescription  String?
+  ogImage         String?
+  canonicalUrl    String?
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  authorId        String?
+  author          User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([published])
+  @@index([slug])
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  posts     BlogPost[]
+  createdAt DateTime   @default(now())
+}
+
+// ─── Testimonials ─────────────────────────────────────────────────────────────
+
+model Testimonial {
+  id        String   @id @default(cuid())
+  name      String
+  role      String   @default("")
+  location  String   @default("")
+  content   String
+  rating    Int      @default(5)
+  photoUrl  String?
+  approved  Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([approved, order])
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+model Settings {
+  id              String   @id @default("global")
+  companyName     String   @default("SM Dream Properties")
+  tagline         String   @default("")
+  phone           String   @default("")
+  email           String   @default("")
+  whatsapp        String   @default("")
+  address         Json?
+  socialLinks     Json?
+  mapCoordinates  Json?
+  updatedAt       DateTime @updatedAt
+}
+
+// ─── Activity Log ─────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
