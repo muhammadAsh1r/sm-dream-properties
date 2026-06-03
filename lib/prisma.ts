@@ -2,7 +2,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 
-import { normalizeDatabaseUrl, parseDatabaseHost } from "@/lib/db/connection-string";
+import {
+  getPgPoolConfig,
+  normalizeDatabaseUrl,
+  parseDatabaseHost,
+} from "@/lib/db/connection-string";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -20,13 +24,7 @@ function createPrismaClient() {
   }
 
   const pool =
-    globalForPrisma.pool ??
-    new Pool({
-      connectionString,
-      max: 10,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 10_000,
-    });
+    globalForPrisma.pool ?? new Pool(getPgPoolConfig(process.env.DATABASE_URL));
 
   const adapter = new PrismaPg(pool);
   globalForPrisma.pool = pool;
