@@ -10,38 +10,43 @@ import {
 import { prisma } from "@/lib/prisma";
 
 export async function syncUserFromClerk(clerkUserId: string): Promise<User | null> {
-  const clerkUser = await getClerkUser(clerkUserId);
+  try {
+    const clerkUser = await getClerkUser(clerkUserId);
 
-  const email =
-    clerkUser.emailAddresses.find(
-      (e) => e.id === clerkUser.primaryEmailAddressId
-    )?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress;
+    const email =
+      clerkUser.emailAddresses.find(
+        (e) => e.id === clerkUser.primaryEmailAddressId
+      )?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress;
 
-  if (!email) return null;
+    if (!email) return null;
 
-  const roleFromMetadata = clerkUser.publicMetadata?.role as string | undefined;
-  const validRoles = ["SUPER_ADMIN", "ADMIN", "AGENT", "CLIENT"] as const;
-  const role =
-    roleFromMetadata && validRoles.includes(roleFromMetadata as (typeof validRoles)[number])
-      ? (roleFromMetadata as (typeof validRoles)[number])
-      : undefined;
+    const roleFromMetadata = clerkUser.publicMetadata?.role as string | undefined;
+    const validRoles = ["SUPER_ADMIN", "ADMIN", "AGENT", "CLIENT"] as const;
+    const role =
+      roleFromMetadata && validRoles.includes(roleFromMetadata as (typeof validRoles)[number])
+        ? (roleFromMetadata as (typeof validRoles)[number])
+        : undefined;
 
-  return prisma.user.upsert({
-    where: { clerkId: clerkUser.id },
-    create: {
-      clerkId: clerkUser.id,
-      email,
-      name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
-      avatarUrl: clerkUser.imageUrl ?? null,
-      role: role ?? "CLIENT",
-    },
-    update: {
-      email,
-      name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
-      avatarUrl: clerkUser.imageUrl ?? null,
-      ...(role ? { role } : {}),
-    },
-  });
+    return await prisma.user.upsert({
+      where: { clerkId: clerkUser.id },
+      create: {
+        clerkId: clerkUser.id,
+        email,
+        name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
+        avatarUrl: clerkUser.imageUrl ?? null,
+        role: role ?? "CLIENT",
+      },
+      update: {
+        email,
+        name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
+        avatarUrl: clerkUser.imageUrl ?? null,
+        ...(role ? { role: role } : {}),
+      },
+    });
+  } catch (error) {
+    console.error("[auth] Failed to sync Clerk user to database:", error);
+    return null;
+  }
 }
 
 export async function getCurrentUser(): Promise<User | null> {
@@ -56,7 +61,15 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 export async function requireAdminUser(): Promise<User> {
-  const user = await getCurrentUser();
+  const { userId } = await getClerkAuth();
+  if (!userId) {
+    redirect("/sign-in?redirect_url=/admin");
+  }
+
+  let user =
+    (await syncUserFromClerk(userId)) ??
+    (await prisma.user.findUnique({ where: { clerkId: userId } }));
+
   if (!user || !canAccessAdmin(user.role)) {
     redirect("/sign-in?redirect_url=/admin");
   }

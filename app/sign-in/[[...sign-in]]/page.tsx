@@ -12,6 +12,8 @@ export default function SignInPage() {
           <p className="mt-1 text-sm text-white/60">Sign in to manage your dashboard</p>
         </div>
         <SignIn
+          fallbackRedirectUrl="/admin"
+          forceRedirectUrl="/admin"
           appearance={{
             elements: {
               rootBox: "mx-auto",
