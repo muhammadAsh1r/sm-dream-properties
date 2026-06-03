@@ -8,7 +8,10 @@ export default clerkMiddleware(async (auth, req) => {
   }
 });
 
+export const runtime = "nodejs";
+
 export const config = {
+  runtime: "nodejs",
   matcher: [
     "/admin/:path*",
     "/dashboard/:path*",
