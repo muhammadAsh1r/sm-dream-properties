@@ -14,6 +14,21 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL is not set");
   }
 
+  let hostname = "";
+  try {
+    hostname = new URL(connectionString).hostname;
+  } catch {
+    throw new Error(
+      "DATABASE_URL is not a valid URL. Copy the full Supabase connection string (with %21 for ! in the password)."
+    );
+  }
+
+  if (hostname === "base") {
+    throw new Error(
+      'DATABASE_URL host is "base" — the connection string is truncated or wrong. Use the full Supabase pooler URL ending in .supabase.com:6543/postgres?pgbouncer=true'
+    );
+  }
+
   const pool =
     globalForPrisma.pool ??
     new Pool({
