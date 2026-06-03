@@ -1,11 +1,11 @@
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 
-import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 
 import { canAccessAdmin, getCurrentUser, hasPermission } from "@/lib/auth";
+import { getClerkAuthFromRequest } from "@/lib/auth/clerk-session";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public/uploads");
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
@@ -13,7 +13,7 @@ const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
 
 export async function POST(request: Request) {
   try {
-    const { userId } = await auth();
+    const { userId } = await getClerkAuthFromRequest(request);
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

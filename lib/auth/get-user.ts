@@ -1,7 +1,7 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
 import type { User } from "@prisma/client";
 import { redirect } from "next/navigation";
 
+import { getClerkAuth, getClerkUser } from "@/lib/auth/clerk-session";
 import {
   canAccessAdmin,
   hasPermission,
@@ -9,9 +9,8 @@ import {
 } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 
-export async function syncUserFromClerk(): Promise<User | null> {
-  const clerkUser = await currentUser();
-  if (!clerkUser) return null;
+export async function syncUserFromClerk(clerkUserId: string): Promise<User | null> {
+  const clerkUser = await getClerkUser(clerkUserId);
 
   const email =
     clerkUser.emailAddresses.find(
@@ -46,12 +45,12 @@ export async function syncUserFromClerk(): Promise<User | null> {
 }
 
 export async function getCurrentUser(): Promise<User | null> {
-  const { userId } = await auth();
+  const { userId } = await getClerkAuth();
   if (!userId) return null;
 
   let user = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!user) {
-    user = await syncUserFromClerk();
+    user = await syncUserFromClerk(userId);
   }
   return user;
 }
