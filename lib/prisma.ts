@@ -2,30 +2,20 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 
+import { normalizeDatabaseUrl, parseDatabaseHost } from "@/lib/db/connection-string";
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
   pool: Pool | undefined;
 };
 
 function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    throw new Error("DATABASE_URL is not set");
-  }
-
-  let hostname = "";
-  try {
-    hostname = new URL(connectionString).hostname;
-  } catch {
-    throw new Error(
-      "DATABASE_URL is not a valid URL. Copy the full Supabase connection string (with %21 for ! in the password)."
-    );
-  }
+  const connectionString = normalizeDatabaseUrl(process.env.DATABASE_URL);
+  const hostname = parseDatabaseHost(connectionString);
 
   if (hostname === "base") {
     throw new Error(
-      'DATABASE_URL host is "base" — the connection string is truncated or wrong. Use the full Supabase pooler URL ending in .supabase.com:6543/postgres?pgbouncer=true'
+      'DATABASE_URL host is "base" — the connection string is truncated. Use the full Supabase pooler URL ending in .supabase.com:6543/postgres?pgbouncer=true'
     );
   }
 
@@ -49,8 +39,17 @@ function createPrismaClient() {
   });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+function getPrismaClient(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
+  return globalForPrisma.prisma;
 }
+
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, prop, receiver);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
