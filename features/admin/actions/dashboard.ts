@@ -3,12 +3,23 @@
 import { revalidatePath } from "next/cache";
 import { startOfMonth, subMonths, format } from "date-fns";
 
-import { requireAdminUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function getDashboardStats() {
-  const user = await requireAdminUser();
+  const user = await getCurrentUser();
+  if (!user) {
+    return {
+      totalProperties: 0,
+      featuredProperties: 0,
+      newLeads: 0,
+      totalInquiries: 0,
+      blogPosts: 0,
+      testimonials: 0,
+      publishedProperties: 0,
+    };
+  }
 
   const agentFilter =
     user.role === "AGENT" ? { assignedAgentId: user.id } : {};
@@ -50,7 +61,8 @@ export async function getDashboardStats() {
 }
 
 export async function getDashboardCharts() {
-  const user = await requireAdminUser();
+  const user = await getCurrentUser();
+  if (!user) return [];
 
   const agentPropertyFilter =
     user.role === "AGENT" ? { assignedAgentId: user.id } : {};
@@ -105,8 +117,8 @@ export async function getDashboardCharts() {
 }
 
 export async function getRecentActivityLogs() {
-  const user = await requireAdminUser();
-  if (!hasPermission(user.role, "activity:view")) {
+  const user = await getCurrentUser();
+  if (!user || !hasPermission(user.role, "activity:view")) {
     return [];
   }
   return prisma.activityLog.findMany({

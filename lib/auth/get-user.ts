@@ -66,15 +66,24 @@ export async function requireAdminUser(): Promise<User> {
     redirect("/sign-in?redirect_url=/admin");
   }
 
-  const user =
-    (await syncUserFromClerk(userId)) ??
-    (await prisma.user.findUnique({ where: { clerkId: userId } }));
+  let user: User | null = null;
+
+  try {
+    user =
+      (await syncUserFromClerk(userId)) ??
+      (await prisma.user.findUnique({ where: { clerkId: userId } }));
+  } catch (error) {
+    console.error("[auth] Database error during admin auth:", error);
+    throw new Error(
+      "Unable to reach the database. Check DATABASE_URL on Vercel and run npm run db:push against your Supabase project."
+    );
+  }
 
   if (!user || !canAccessAdmin(user.role)) {
-    redirect("/sign-in?redirect_url=/admin");
+    redirect("/access-denied");
   }
   if (!user.active) {
-    redirect("/sign-in?error=account_deactivated");
+    redirect("/access-denied?reason=deactivated");
   }
   return user;
 }

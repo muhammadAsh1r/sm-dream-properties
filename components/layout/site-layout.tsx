@@ -12,7 +12,7 @@ type SiteLayoutProps = {
   site: PublicSiteConfig;
 };
 
-const BARE_ROUTES = ["/admin", "/sign-in", "/sign-up"];
+const BARE_ROUTES = ["/admin", "/sign-in", "/sign-up", "/access-denied"];
 
 function isBareRoute(pathname: string) {
   return BARE_ROUTES.some(
