@@ -1,12 +1,14 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-// Session handling only on auth-related routes. Admin access is enforced in app/admin/layout.tsx.
-export default clerkMiddleware();
+const isProtectedRoute = createRouteMatcher(["/admin(.*)", "/dashboard(.*)"]);
 
-export const runtime = "nodejs";
+export default clerkMiddleware(async (auth, req) => {
+  if (isProtectedRoute(req)) {
+    await auth.protect();
+  }
+});
 
 export const config = {
-  runtime: "nodejs",
   matcher: [
     "/admin/:path*",
     "/dashboard/:path*",
