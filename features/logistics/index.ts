@@ -1,7 +1,1 @@
-/**
- * Logistics feature module.
- */
-
-export const logisticsFeature = {
-  name: "logistics",
-} as const;
+export { LogisticsPageContent } from "@/features/logistics/components/logistics-page-content";
