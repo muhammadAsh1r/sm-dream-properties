@@ -7,12 +7,10 @@ import { defineConfig } from "prisma/config";
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error(
-    "DATABASE_URL is not set. Add it to .env.local in the project root (see .env.example)."
-  );
-}
+// Generate only needs a valid URL shape; db push validates env in scripts/db-push.mjs
+const databaseUrl =
+  process.env.DATABASE_URL ??
+  "postgresql://placeholder:placeholder@localhost:5432/placeholder";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

@@ -44,5 +44,5 @@ export async function getActivityEntityTypes(): Promise<string[]> {
     select: { entityType: true },
     orderBy: { entityType: "asc" },
   });
-  return rows.map((r) => r.entityType);
+  return rows.map((r: { entityType: string }) => r.entityType);
 }
