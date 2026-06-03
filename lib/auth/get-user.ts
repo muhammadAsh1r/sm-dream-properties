@@ -66,7 +66,7 @@ export async function requireAdminUser(): Promise<User> {
     redirect("/sign-in?redirect_url=/admin");
   }
 
-  let user =
+  const user =
     (await syncUserFromClerk(userId)) ??
     (await prisma.user.findUnique({ where: { clerkId: userId } }));
 
