@@ -241,7 +241,7 @@ export async function getSimilarPublishedProperties(property: Property, limit = 
     .map((s) => s.property);
 }
 
-export async function getPublishedPropertySlugs() {
+export async function getPublishedPropertySlugs(): Promise<string[]> {
   const rows = await prisma.property.findMany({
     where: publishedWhere,
     select: { slug: true },

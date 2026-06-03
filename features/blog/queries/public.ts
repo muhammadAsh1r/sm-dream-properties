@@ -37,7 +37,7 @@ export const getPublishedBlogPostBySlug = reactCache(async (slug: string) => {
   )();
 });
 
-export async function getPublishedBlogSlugs() {
+export async function getPublishedBlogSlugs(): Promise<string[]> {
   const posts = await prisma.blogPost.findMany({
     where: { published: true },
     select: { slug: true },

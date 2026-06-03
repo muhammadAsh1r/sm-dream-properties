@@ -16,7 +16,7 @@ type PropertyDetailPageProps = {
 
 export async function generateStaticParams() {
   const slugs = await getPublishedPropertySlugs();
-  return slugs.map((slug) => ({ slug }));
+  return slugs.map((slug: string) => ({ slug }));
 }
 
 export const dynamicParams = true;
