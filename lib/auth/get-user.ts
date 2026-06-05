@@ -1,4 +1,5 @@
 import type { User } from "@prisma/client";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 
 import { getClerkAuth, getClerkUser } from "@/lib/auth/clerk-session";
@@ -53,11 +54,16 @@ export async function getCurrentUser(): Promise<User | null> {
   const { userId } = await getClerkAuth();
   if (!userId) return null;
 
-  let user = await prisma.user.findUnique({ where: { clerkId: userId } });
-  if (!user) {
-    user = await syncUserFromClerk(userId);
+  try {
+    let user = await prisma.user.findUnique({ where: { clerkId: userId } });
+    if (!user) {
+      user = await syncUserFromClerk(userId);
+    }
+    return user;
+  } catch (error) {
+    console.error("[auth] Database error during getCurrentUser:", error);
+    return null;
   }
-  return user;
 }
 
 export async function requireAdminUser(): Promise<User> {
@@ -73,10 +79,9 @@ export async function requireAdminUser(): Promise<User> {
       (await syncUserFromClerk(userId)) ??
       (await prisma.user.findUnique({ where: { clerkId: userId } }));
   } catch (error) {
+    if (isRedirectError(error)) throw error;
     console.error("[auth] Database error during admin auth:", error);
-    throw new Error(
-      "Unable to reach the database. Check DATABASE_URL on Vercel and run npm run db:push against your Supabase project."
-    );
+    redirect("/access-denied?reason=db");
   }
 
   if (!user || !canAccessAdmin(user.role)) {
