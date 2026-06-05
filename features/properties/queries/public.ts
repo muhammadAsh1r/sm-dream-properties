@@ -28,6 +28,26 @@ const publishedWhere: Prisma.PropertyWhereInput = {
   archived: false,
 };
 
+const EMPTY_SEARCH_RESULT = {
+  properties: [] as Property[],
+  total: 0,
+  totalPages: 1,
+  page: 1,
+  perPage: PROPERTIES_PER_PAGE,
+};
+
+function parsePositiveNumber(value?: string): number | undefined {
+  if (!value) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return n;
+}
+
+function parsePositiveInt(value?: string): number | undefined {
+  const n = parsePositiveNumber(value);
+  return n === undefined ? undefined : Math.floor(n);
+}
+
 function toMarla(area: number, unit: Property["areaUnit"]): number {
   if (unit === "marla") return area;
   if (unit === "kanal") return area * 20;
@@ -75,24 +95,28 @@ function buildPrismaWhere(params: PropertySearchParams): Prisma.PropertyWhereInp
   const where: Prisma.PropertyWhereInput = { ...publishedWhere };
 
   if (params.featured === "true") where.featured = true;
-  if (params.kind) {
+  if (params.kind && params.kind in FRONT_KIND_TO_PRISMA) {
     where.kind = FRONT_KIND_TO_PRISMA[params.kind as PropertyKind];
   }
-  if (params.status) {
+  if (params.status && params.status in FRONT_TYPE_TO_PRISMA) {
     where.type = FRONT_TYPE_TO_PRISMA[params.status as PropertyStatus];
   }
-  if (params.location) {
+  if (params.location && params.location in FRONT_LOCATION_TO_PRISMA) {
     where.locationArea =
       FRONT_LOCATION_TO_PRISMA[params.location as PropertyLocationArea];
   }
-  if (params.minPrice || params.maxPrice) {
+  const minPrice = parsePositiveNumber(params.minPrice);
+  const maxPrice = parsePositiveNumber(params.maxPrice);
+  if (minPrice !== undefined || maxPrice !== undefined) {
     const priceFilter: Prisma.DecimalFilter = {};
-    if (params.minPrice) priceFilter.gte = Number(params.minPrice);
-    if (params.maxPrice) priceFilter.lte = Number(params.maxPrice);
+    if (minPrice !== undefined) priceFilter.gte = minPrice;
+    if (maxPrice !== undefined) priceFilter.lte = maxPrice;
     where.price = priceFilter;
   }
-  if (params.bedrooms) where.bedrooms = { gte: Number(params.bedrooms) };
-  if (params.bathrooms) where.bathrooms = { gte: Number(params.bathrooms) };
+  const bedrooms = parsePositiveInt(params.bedrooms);
+  if (bedrooms !== undefined) where.bedrooms = { gte: bedrooms };
+  const bathrooms = parsePositiveInt(params.bathrooms);
+  if (bathrooms !== undefined) where.bathrooms = { gte: bathrooms };
   if (params.q) {
     where.OR = [
       { title: { contains: params.q, mode: "insensitive" } },
@@ -106,79 +130,91 @@ function buildPrismaWhere(params: PropertySearchParams): Prisma.PropertyWhereInp
 }
 
 export async function searchPublishedProperties(params: PropertySearchParams = {}) {
-  const settings = await getPublicSettings();
-  const where = buildPrismaWhere(params);
-  const sort = (params.sort as PropertySort) ?? "latest";
-  const currentPage = Math.max(1, Number(params.page) || 1);
-  const hasAreaFilter = Boolean(params.area);
+  return withDbFallback(
+    async () => {
+      const settings = await getPublicSettings();
+      const where = buildPrismaWhere(params);
+      const sort = (params.sort as PropertySort) ?? "latest";
+      const currentPage = Math.max(1, parsePositiveInt(params.page) ?? 1);
+      const hasAreaFilter = Boolean(params.area);
 
-  if (!hasAreaFilter) {
-    const [rows, total] = await Promise.all([
-      prisma.property.findMany({
+      if (!hasAreaFilter) {
+        const [rows, total] = await Promise.all([
+          prisma.property.findMany({
+            where,
+            include: propertyInclude,
+            orderBy: getDbOrderBy(sort),
+            skip: (currentPage - 1) * PROPERTIES_PER_PAGE,
+            take: PROPERTIES_PER_PAGE,
+          }),
+          prisma.property.count({ where }),
+        ]);
+
+        const totalPages = Math.max(1, Math.ceil(total / PROPERTIES_PER_PAGE));
+        const safePage = Math.min(currentPage, totalPages);
+
+        return {
+          properties: rows.map((row) => mapPrismaPropertyToFrontend(row, settings)),
+          total,
+          totalPages,
+          page: safePage,
+          perPage: PROPERTIES_PER_PAGE,
+        };
+      }
+
+      const rows = await prisma.property.findMany({
         where,
         include: propertyInclude,
-        orderBy: getDbOrderBy(sort),
-        skip: (currentPage - 1) * PROPERTIES_PER_PAGE,
-        take: PROPERTIES_PER_PAGE,
-      }),
-      prisma.property.count({ where }),
-    ]);
+        orderBy: { createdAt: "desc" },
+      });
 
-    const totalPages = Math.max(1, Math.ceil(total / PROPERTIES_PER_PAGE));
-    const safePage = Math.min(currentPage, totalPages);
+      let properties = rows.map((row) => mapPrismaPropertyToFrontend(row, settings));
+      properties = properties.filter((p) =>
+        matchesAreaFilter(p, params.area, params.customAreaMin, params.customAreaMax)
+      );
 
-    return {
-      properties: rows.map((row) => mapPrismaPropertyToFrontend(row, settings)),
-      total,
-      totalPages,
-      page: safePage,
-      perPage: PROPERTIES_PER_PAGE,
-    };
-  }
+      if (sort === "price-asc") properties.sort((a, b) => a.price - b.price);
+      else if (sort === "price-desc") properties.sort((a, b) => b.price - a.price);
+      else if (sort === "featured") {
+        properties.sort((a, b) => {
+          if (a.featured !== b.featured) return a.featured ? -1 : 1;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+      }
 
-  const rows = await prisma.property.findMany({
-    where,
-    include: propertyInclude,
-    orderBy: { createdAt: "desc" },
-  });
+      const total = properties.length;
+      const totalPages = Math.max(1, Math.ceil(total / PROPERTIES_PER_PAGE));
+      const safePage = Math.min(currentPage, totalPages);
+      const start = (safePage - 1) * PROPERTIES_PER_PAGE;
 
-  let properties = rows.map((row) => mapPrismaPropertyToFrontend(row, settings));
-  properties = properties.filter((p) =>
-    matchesAreaFilter(p, params.area, params.customAreaMin, params.customAreaMax)
+      return {
+        properties: properties.slice(start, start + PROPERTIES_PER_PAGE),
+        total,
+        totalPages,
+        page: safePage,
+        perPage: PROPERTIES_PER_PAGE,
+      };
+    },
+    EMPTY_SEARCH_RESULT,
+    "search published properties"
   );
-
-  if (sort === "price-asc") properties.sort((a, b) => a.price - b.price);
-  else if (sort === "price-desc") properties.sort((a, b) => b.price - a.price);
-  else if (sort === "featured") {
-    properties.sort((a, b) => {
-      if (a.featured !== b.featured) return a.featured ? -1 : 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-  }
-
-  const total = properties.length;
-  const totalPages = Math.max(1, Math.ceil(total / PROPERTIES_PER_PAGE));
-  const safePage = Math.min(currentPage, totalPages);
-  const start = (safePage - 1) * PROPERTIES_PER_PAGE;
-
-  return {
-    properties: properties.slice(start, start + PROPERTIES_PER_PAGE),
-    total,
-    totalPages,
-    page: safePage,
-    perPage: PROPERTIES_PER_PAGE,
-  };
 }
 
 async function fetchPropertyBySlug(slug: string) {
-  const settings = await getPublicSettings();
-  const row = await prisma.property.findFirst({
-    where: { ...publishedWhere, slug },
-    include: propertyInclude,
-  });
+  return withDbFallback(
+    async () => {
+      const settings = await getPublicSettings();
+      const row = await prisma.property.findFirst({
+        where: { ...publishedWhere, slug },
+        include: propertyInclude,
+      });
 
-  if (!row) return null;
-  return mapPrismaPropertyToFrontend(row, settings);
+      if (!row) return null;
+      return mapPrismaPropertyToFrontend(row, settings);
+    },
+    null,
+    `property slug ${slug}`
+  );
 }
 
 export const getPublishedPropertyBySlug = reactCache(async (slug: string) => {
@@ -214,48 +250,64 @@ export async function getFeaturedPublishedProperties(limit = 6) {
 }
 
 export async function getSimilarPublishedProperties(property: Property, limit = 4) {
-  const settings = await getPublicSettings();
-  const locationArea = FRONT_LOCATION_TO_PRISMA[property.locationArea];
-  const kind = FRONT_KIND_TO_PRISMA[property.kind];
+  return withDbFallback(
+    async () => {
+      const settings = await getPublicSettings();
+      const locationArea = FRONT_LOCATION_TO_PRISMA[property.locationArea];
+      const kind = FRONT_KIND_TO_PRISMA[property.kind];
 
-  const rows = await prisma.property.findMany({
-    where: {
-      ...publishedWhere,
-      id: { not: property.id },
-      OR: [{ locationArea }, { kind }],
+      const rows = await prisma.property.findMany({
+        where: {
+          ...publishedWhere,
+          id: { not: property.id },
+          OR: [{ locationArea }, { kind }],
+        },
+        include: propertyInclude,
+        orderBy: { createdAt: "desc" },
+        take: 16,
+      });
+
+      const all = rows.map((row) => mapPrismaPropertyToFrontend(row, settings));
+
+      const scored = all.map((p) => {
+        let score = 0;
+        if (p.locationArea === property.locationArea) score += 3;
+        if (p.kind === property.kind) score += 2;
+        if (p.status === property.status) score += 1;
+        const priceDiff = Math.abs(p.price - property.price) / Math.max(property.price, 1);
+        if (priceDiff < 0.3) score += 2;
+        else if (priceDiff < 0.5) score += 1;
+        return { property: p, score };
+      });
+
+      return scored
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map((s) => s.property);
     },
-    include: propertyInclude,
-    orderBy: { createdAt: "desc" },
-    take: 16,
-  });
-
-  const all = rows.map((row) => mapPrismaPropertyToFrontend(row, settings));
-
-  const scored = all.map((p) => {
-    let score = 0;
-    if (p.locationArea === property.locationArea) score += 3;
-    if (p.kind === property.kind) score += 2;
-    if (p.status === property.status) score += 1;
-    const priceDiff = Math.abs(p.price - property.price) / Math.max(property.price, 1);
-    if (priceDiff < 0.3) score += 2;
-    else if (priceDiff < 0.5) score += 1;
-    return { property: p, score };
-  });
-
-  return scored
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map((s) => s.property);
+    [],
+    "similar published properties"
+  );
 }
 
 export async function getPublishedPropertySlugs(): Promise<string[]> {
-  const rows = await prisma.property.findMany({
-    where: publishedWhere,
-    select: { slug: true },
-  });
-  return rows.map((r) => r.slug);
+  return withDbFallback(
+    async () => {
+      const rows = await prisma.property.findMany({
+        where: publishedWhere,
+        select: { slug: true },
+      });
+      return rows.map((r) => r.slug);
+    },
+    [],
+    "published property slugs"
+  );
 }
 
 export async function getPublishedPropertyCount() {
-  return prisma.property.count({ where: publishedWhere });
+  return withDbFallback(
+    () => prisma.property.count({ where: publishedWhere }),
+    0,
+    "published property count"
+  );
 }
