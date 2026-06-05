@@ -21,7 +21,7 @@ const MESSAGES: Record<string, { title: string; description: string }> = {
   db: {
     title: "Database unavailable",
     description:
-      "The admin dashboard could not connect to the database. Check DATABASE_URL and DIRECT_URL in your Vercel project settings, then redeploy.",
+      "The admin dashboard could not connect to the database. In Vercel, set DATABASE_URL to the Supabase Transaction pooler (port 6543, with ?pgbouncer=true). Use DIRECT_URL on port 5432 for migrations only — do not use it as DATABASE_URL.",
   },
 };
 
