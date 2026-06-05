@@ -71,14 +71,26 @@ function stripSslModeParam(connectionString: string): string {
   }
 }
 
+function appendPoolerParams(connectionString: string): string {
+  try {
+    const url = new URL(connectionString);
+    if (process.env.VERCEL && isSupabasePoolerHost(url.hostname) && !url.searchParams.has("connection_limit")) {
+      url.searchParams.set("connection_limit", "1");
+    }
+    return url.toString();
+  } catch {
+    return connectionString;
+  }
+}
+
 /** Pool options for `pg` — Vercel/Supabase need explicit TLS trust. */
 export function getPgPoolConfig(rawUrl?: string) {
   assertRuntimeDatabaseUrl(rawUrl);
   const normalized = normalizeDatabaseUrl(rawUrl);
   const host = parseDatabaseHost(normalized);
-  const connectionString = isLocalDatabaseHost(host)
-    ? normalized
-    : stripSslModeParam(normalized);
+  const connectionString = appendPoolerParams(
+    isLocalDatabaseHost(host) ? normalized : stripSslModeParam(normalized)
+  );
 
   return {
     connectionString,

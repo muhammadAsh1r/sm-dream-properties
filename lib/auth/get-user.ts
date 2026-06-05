@@ -28,20 +28,28 @@ export async function syncUserFromClerk(clerkUserId: string): Promise<User | nul
         ? (roleFromMetadata as (typeof validRoles)[number])
         : undefined;
 
-    return await prisma.user.upsert({
-      where: { clerkId: clerkUser.id },
-      create: {
+    const profile = {
+      email,
+      name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
+      avatarUrl: clerkUser.imageUrl ?? null,
+    };
+
+    const existing = await prisma.user.findUnique({ where: { clerkId: clerkUser.id } });
+    if (existing) {
+      return prisma.user.update({
+        where: { clerkId: clerkUser.id },
+        data: {
+          ...profile,
+          ...(role ? { role } : {}),
+        },
+      });
+    }
+
+    return prisma.user.create({
+      data: {
         clerkId: clerkUser.id,
-        email,
-        name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
-        avatarUrl: clerkUser.imageUrl ?? null,
+        ...profile,
         role: role ?? "CLIENT",
-      },
-      update: {
-        email,
-        name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
-        avatarUrl: clerkUser.imageUrl ?? null,
-        ...(role ? { role: role } : {}),
       },
     });
   } catch (error) {
@@ -66,6 +74,10 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
+async function loadUserByClerkId(clerkUserId: string): Promise<User | null> {
+  return prisma.user.findUnique({ where: { clerkId: clerkUserId } });
+}
+
 export async function requireAdminUser(): Promise<User> {
   const { userId } = await getClerkAuth();
   if (!userId) {
@@ -75,9 +87,10 @@ export async function requireAdminUser(): Promise<User> {
   let user: User | null = null;
 
   try {
-    user =
-      (await syncUserFromClerk(userId)) ??
-      (await prisma.user.findUnique({ where: { clerkId: userId } }));
+    user = await loadUserByClerkId(userId);
+    if (!user) {
+      user = await syncUserFromClerk(userId);
+    }
   } catch (error) {
     if (isRedirectError(error)) throw error;
     console.error("[auth] Database error during admin auth:", error);
